@@ -781,8 +781,8 @@
         <p>Опишите ситуацию, укажите место и отправьте обращение в единую систему обработки.</p>
 
         <div class="steps" aria-label="Этапы подачи обращения">
-          <div class="step"><strong>01</strong><span>Контакты</span></div>
-          <div class="step"><strong>02</strong><span>Проблема и адрес</span></div>
+          <div class="step"><strong>01</strong><span>Что произошло?</span></div>
+          <div class="step"><strong>02</strong><span>Где находится?</span></div>
           <div class="step"><strong>03</strong><span>Описание и отправка</span></div>
         </div>
       </div>
@@ -1028,7 +1028,7 @@
     const lng = document.getElementById('lng');
     const toast = document.getElementById('toast');
     const formSections = [...document.querySelectorAll('#appealForm .form-step')];
-    const sectionOrder = [3, 0, 1, 2, 4];
+    const sectionOrder = [0, 1, 2, 3, 4];
     const orderedSections = sectionOrder.map(index => formSections[index]);
     orderedSections.forEach(section => form.appendChild(section));
     const backBtn = document.getElementById('backBtn');
@@ -1072,6 +1072,10 @@
         categoryInput.dispatchEvent(new Event('change'));
         updateSummary();
         if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        // Категория — первый экран: после выбора сразу показываем адрес.
+        if (currentStep === 0) {
+          setTimeout(() => setStep(1), 160);
+        }
       });
     });
 
@@ -1132,7 +1136,26 @@
     }
 
     function validateStep() {
-      if (currentStep === 0) {
+      if (currentStep === 0 && !categoryInput.value) {
+        showToast('Выберите категорию обращения');
+        return false;
+      }
+      if (currentStep === 1 && !district.value) {
+        showToast('Выберите район или город');
+        markInvalid(district);
+        return false;
+      }
+      if (currentStep === 1 && address.value.trim().length < 3) {
+        showToast('Укажите адрес или ориентир');
+        markInvalid(address);
+        return false;
+      }
+      if (currentStep === 2 && description.value.trim().length < 10) {
+        showToast('Опишите проблему подробнее: минимум 10 символов');
+        markInvalid(description);
+        return false;
+      }
+      if (currentStep === 3) {
         const words = nameInput.value.trim().split(/\s+/).filter(Boolean);
         const phoneDigits = phone.value.replace(/\D/g, '');
         if (words.length < 2) {
@@ -1145,25 +1168,6 @@
           markInvalid(phone);
           return false;
         }
-      }
-      if (currentStep === 1 && !categoryInput.value) {
-        showToast('Выберите категорию обращения');
-        return false;
-      }
-      if (currentStep === 2 && !district.value) {
-        showToast('Выберите район или город');
-        markInvalid(district);
-        return false;
-      }
-      if (currentStep === 2 && address.value.trim().length < 3) {
-        showToast('Укажите адрес или ориентир');
-        markInvalid(address);
-        return false;
-      }
-      if (currentStep === 3 && description.value.trim().length < 10) {
-        showToast('Опишите проблему подробнее: минимум 10 символов');
-        markInvalid(description);
-        return false;
       }
       return true;
     }
