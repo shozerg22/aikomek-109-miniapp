@@ -810,10 +810,10 @@
 
           <input id="category" name="category" type="hidden" required />
           <div class="category-grid" role="radiogroup" aria-label="Категория обращения">
-            <button class="category" type="button" data-category="Мусор" role="radio" aria-checked="false">
+            <button class="category" type="button" data-category="Вывоз мусора" role="radio" aria-checked="false">
               <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.4l4.2 4.2L19 6.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M8 7h8m-7 0l.7 12h4.6L15 7M10 7V5.4c0-.8.6-1.4 1.4-1.4h1.2c.8 0 1.4.6 1.4 1.4V7M6.5 7h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span class="category-title">Мусор</span>
+              <span class="category-title">Вывоз мусора</span>
               <span class="category-text">переполненные баки, свалка, уборка территории</span>
             </button>
 
@@ -824,17 +824,17 @@
               <span class="category-text">ямы, разметка, тротуары, дорожные знаки</span>
             </button>
 
-            <button class="category" type="button" data-category="Освещение" role="radio" aria-checked="false">
+            <button class="category" type="button" data-category="Электроснабжение" role="radio" aria-checked="false">
               <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.4l4.2 4.2L19 6.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M8.6 14.2A6 6 0 1115.4 14c-.8.7-1.2 1.4-1.4 2h-4c-.2-.7-.7-1.3-1.4-1.8z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span class="category-title">Освещение</span>
+              <span class="category-title">Электроснабжение</span>
               <span class="category-text">не горит фонарь, тёмный участок, опора</span>
             </button>
 
-            <button class="category" type="button" data-category="Вода" role="radio" aria-checked="false">
+            <button class="category" type="button" data-category="Водоснабжение" role="radio" aria-checked="false">
               <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.4l4.2 4.2L19 6.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5S6.8 9.2 6.8 13.4a5.2 5.2 0 1010.4 0C17.2 9.2 12 3.5 12 3.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
-              <span class="category-title">Вода</span>
+              <span class="category-title">Водоснабжение</span>
               <span class="category-text">нет воды, авария, слабый напор, утечка</span>
             </button>
 
@@ -843,6 +843,20 @@
               <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M13.5 3.5c.8 3-2.7 3.8-2.2 6.4.3 1.3 1.4 1.8 1.4 3.3 0 1.8-1.5 3.3-3.3 3.3M16.8 8.2c.3 1.8-1 2.6-1 4.1 0 1.8 1.5 2.3 1.5 4.1A4.6 4.6 0 0112.7 21h-1.4a4.8 4.8 0 01-4.8-4.8c0-2.1 1.2-3.2 2.4-4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               <span class="category-title">Отопление</span>
               <span class="category-text">холодно, авария, перебои, теплотрасса</span>
+            </button>
+
+            <button class="category" type="button" data-category="Канализация" role="radio" aria-checked="false">
+              <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.4l4.2 4.2L19 6.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M7 5h10M8 5l.7 14h6.6L16 5M9 12h6M12 8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="category-title">Канализация</span>
+              <span class="category-text">засор, сток, люк, аварийная утечка</span>
+            </button>
+
+            <button class="category" type="button" data-category="Благоустройство двора" role="radio" aria-checked="false">
+              <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.4l4.2 4.2L19 6.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="category-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4.5 18.5h15M7 18.5V11l5-4 5 4v7.5M10 18.5v-3h4v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span class="category-title">Благоустройство двора</span>
+              <span class="category-text">детская площадка, двор, тротуар, озеленение</span>
             </button>
 
             <button class="category" type="button" data-category="Другое" role="radio" aria-checked="false">
@@ -863,14 +877,15 @@
             </div>
           </div>
 
-          <div class="field-grid two">
+          <div class="field-grid">
             <div class="field">
               <label for="district">Район / город <span class="req">*</span></label>
               <select class="select" id="district" name="district" required>
                 <option value="">Выберите район</option>
-                <option>Кокшетау</option>
-                <option>Степногорск</option>
-                <option>Косшы</option>
+                <option>г. Кокшетау</option>
+                <option>г. Степногорск</option>
+                <option>г. Косшы</option>
+                <option>г. Щучинск</option>
                 <option>Аккольский район</option>
                 <option>Аршалынский район</option>
                 <option>Астраханский район</option>
@@ -890,19 +905,13 @@
               </select>
             </div>
 
-            <div class="field">
-              <label for="urgency">Срочность <span class="req">*</span></label>
-              <select class="select" id="urgency" name="urgency" required>
-                <option>Обычная</option>
-                <option>Срочная</option>
-                <option>Критическая</option>
-              </select>
-            </div>
           </div>
+
+          <input id="urgency" name="urgency" type="hidden" value="Обычная" />
 
           <div class="field" style="margin-top:12px">
             <label for="address">Адрес или ориентир <span class="req">*</span></label>
-            <input class="control" id="address" name="address" placeholder="Например: г. Кокшетау, ул. Абая 12" autocomplete="street-address" required />
+            <input class="control" id="address" name="address" placeholder="Улица, дом, при необходимости квартира" autocomplete="street-address" required />
             <div class="location-actions">
               <button class="secondary-btn primary-soft" type="button" id="geoBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21s6.5-5.4 6.5-11A6.5 6.5 0 105.5 10C5.5 15.6 12 21 12 21z" stroke="currentColor" stroke-width="1.8"/><path d="M12 12.2a2.2 2.2 0 100-4.4 2.2 2.2 0 000 4.4z" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -926,7 +935,7 @@
           </div>
 
           <div class="field">
-            <label for="description">Описание проблемы <span class="req">*</span></label>
+              <label for="description">Опишите проблему подробнее <span class="req">*</span></label>
             <textarea class="textarea" id="description" name="description" maxlength="600" placeholder="Например: возле дома переполнены контейнеры, мусор не вывозят несколько дней." required></textarea>
             <div class="hint-row"><span>Минимум 10 символов</span><span id="counter">0/600</span></div>
           </div>
@@ -958,11 +967,11 @@
 
           <div class="field-grid two">
             <div class="field">
-              <label for="name">ФИО</label>
-              <input class="control" id="name" name="name" placeholder="Необязательно" autocomplete="name" />
+              <label for="name">Имя и фамилия <span class="req">*</span></label>
+              <input class="control" id="name" name="name" placeholder="Например: Иванов Иван" autocomplete="name" />
             </div>
             <div class="field">
-              <label for="phone">Телефон</label>
+              <label for="phone">Телефон <span class="req">*</span></label>
               <input class="control" id="phone" name="phone" placeholder="+7 777 000 00 00" inputmode="tel" autocomplete="tel" />
             </div>
           </div>
@@ -1007,7 +1016,24 @@
       tg.expand();
       tg.setHeaderColor('#0f4c81');
       tg.setBackgroundColor('#eef4fb');
+      if (tg.MainButton) {
+        tg.MainButton.hide();
+        tg.MainButton.setParams({ is_visible: false });
+      }
     }
+
+    // Соответствие названий интерфейса категориям CRM 109.
+    // При подключении API это значение будет передаваться без новой настройки формы.
+    const CRM_CATEGORY_MAP = {
+      'Водоснабжение': 'Водоснабжение города',
+      'Канализация': 'Водоотведение',
+      'Электроснабжение': 'Электроснабжение города',
+      'Отопление': 'Теплоснабжение города',
+      'Вывоз мусора': 'Твердые бытовые отходы',
+      'Дороги': 'Дорожная инфраструктура',
+      'Благоустройство двора': 'Благоустройство городской среды',
+      'Другое': 'Вопросы по службе ikomek 109'
+    };
 
     const form = document.getElementById('appealForm');
     const categoryInput = document.getElementById('category');
@@ -1205,6 +1231,7 @@
       const payload = {
         appealNumber,
         category: categoryInput.value,
+        crmCategory: CRM_CATEGORY_MAP[categoryInput.value] || 'Вопросы по службе ikomek 109',
         district: district.value,
         urgency: urgency.value,
         address: address.value.trim(),
@@ -1226,6 +1253,7 @@
         type: 'appeal_109',
         appealNumber,
         category: payload.category,
+        crmCategory: payload.crmCategory,
         district: payload.district,
         urgency: payload.urgency,
         address: payload.address,
@@ -1256,7 +1284,10 @@
       }, 1200);
     });
 
-    if (tg && tg.MainButton) tg.MainButton.hide();
+    if (tg && tg.MainButton) {
+      tg.MainButton.hide();
+      tg.MainButton.setParams({ is_visible: false });
+    }
     setStep(0);
   </script>
 </body>
