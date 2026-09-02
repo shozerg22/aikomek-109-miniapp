@@ -1007,6 +1007,20 @@
       ru: { next: 'Далее', submit: 'Отправить обращение', back: 'Назад' },
       kk: { next: 'Келесі', submit: 'Өтінішті жіберу', back: 'Артқа' }
     };
+    const kkCategoryNames = {
+      'Вывоз мусора': 'Қоқыс шығару', 'Дороги': 'Жолдар', 'Электроснабжение': 'Жарықтандыру',
+      'Водоснабжение': 'Сумен жабдықтау', 'Отопление': 'Жылумен жабдықтау', 'Канализация': 'Кәріз',
+      'Благоустройство двора': 'Ауланы абаттандыру', 'Другое': 'Басқа'
+    };
+    const kkDistrictNames = {
+      'г. Кокшетау': 'Көкшетау қ.', 'г. Степногорск': 'Степногорск қ.', 'г. Косшы': 'Қосшы қ.',
+      'г. Щучинск': 'Щучинск қ.', 'Аккольский район': 'Ақкөл ауданы', 'Аршалынский район': 'Аршалы ауданы',
+      'Астраханский район': 'Астрахан ауданы', 'Атбасарский район': 'Атбасар ауданы', 'Буландынский район': 'Бұланды ауданы',
+      'Бурабайский район': 'Бурабай ауданы', 'Егиндыкольский район': 'Егіндікөл ауданы', 'Ерейментауский район': 'Ерейментау ауданы',
+      'Есильский район': 'Есіл ауданы', 'Жаксынский район': 'Жақсы ауданы', 'Жаркаинский район': 'Жарқайын ауданы',
+      'Зерендинский район': 'Зеренді ауданы', 'Коргалжынский район': 'Қорғалжын ауданы', 'Сандыктауский район': 'Сандықтау ауданы',
+      'Целиноградский район': 'Целиноград ауданы', 'Шортандинский район': 'Шортанды ауданы'
+    };
 
     if (tg) {
       tg.ready();
@@ -1125,19 +1139,15 @@
       nameInput.placeholder = 'Мысалы: Әлиев Аян';
       phone.placeholder = '+7 777 000 00 00';
 
-      const districtNames = {
-        'г. Кокшетау': 'Көкшетау қ.', 'г. Степногорск': 'Степногорск қ.', 'г. Косшы': 'Қосшы қ.',
-        'г. Щучинск': 'Щучинск қ.', 'Аккольский район': 'Ақкөл ауданы', 'Аршалынский район': 'Аршалы ауданы',
-        'Астраханский район': 'Астрахан ауданы', 'Атбасарский район': 'Атбасар ауданы', 'Буландынский район': 'Бұланды ауданы',
-        'Бурабайский район': 'Бурабай ауданы', 'Егиндыкольский район': 'Егіндікөл ауданы', 'Ерейментауский район': 'Ерейментау ауданы',
-        'Есильский район': 'Есіл ауданы', 'Жаксынский район': 'Жақсы ауданы', 'Жаркаинский район': 'Жарқайын ауданы',
-        'Зерендинский район': 'Зеренді ауданы', 'Коргалжынский район': 'Қорғалжын ауданы', 'Сандыктауский район': 'Сандықтау ауданы',
-        'Целиноградский район': 'Целиноград ауданы', 'Шортандинский район': 'Шортанды ауданы'
-      };
       [...district.options].forEach(option => {
-        const original = option.value || option.textContent;
+        const original = option.getAttribute('value') ?? option.value;
+        if (!original) {
+          option.value = '';
+          option.textContent = 'Ауданды таңдаңыз';
+          return;
+        }
         option.value = original;
-        option.textContent = original ? (districtNames[original] || original) : 'Ауданды таңдаңыз';
+        option.textContent = kkDistrictNames[original] || original;
       });
       geoBtn.lastChild.textContent = ' Геолокацияны анықтау';
       clearGeoBtn.textContent = 'Тазарту';
@@ -1166,8 +1176,14 @@
     }
 
     function updateSummary() {
-      summary.category.textContent = categoryInput.value || 'Не выбрана';
-      summary.district.textContent = district.value || 'Не указана';
+      const noCategory = appLanguage === 'kk' ? 'Таңдалмаған' : 'Не выбрана';
+      const noDistrict = appLanguage === 'kk' ? 'Көрсетілмеген' : 'Не указана';
+      summary.category.textContent = categoryInput.value
+        ? (appLanguage === 'kk' ? (kkCategoryNames[categoryInput.value] || categoryInput.value) : categoryInput.value)
+        : noCategory;
+      summary.district.textContent = district.value
+        ? (appLanguage === 'kk' ? (kkDistrictNames[district.value] || district.value) : district.value)
+        : noDistrict;
       summary.urgency.textContent = phone.value.trim() || 'Не указан';
       summary.photos.textContent = String(Math.min(photos.files.length, 3));
       counter.textContent = `${description.value.length}/600`;
