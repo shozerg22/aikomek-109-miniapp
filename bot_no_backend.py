@@ -58,6 +58,20 @@ TEXT = {
     },
 }
 USER_LANGUAGES: dict[int, str] = {}
+KK_CATEGORY_NAMES = {
+    "Вывоз мусора": "Қоқыс шығару", "Дороги": "Жолдар", "Электроснабжение": "Жарықтандыру",
+    "Водоснабжение": "Сумен жабдықтау", "Отопление": "Жылумен жабдықтау", "Канализация": "Кәріз",
+    "Благоустройство двора": "Ауланы абаттандыру", "Другое": "Басқа",
+}
+KK_DISTRICT_NAMES = {
+    "г. Кокшетау": "Көкшетау қ.", "г. Степногорск": "Степногорск қ.", "г. Косшы": "Қосшы қ.",
+    "г. Щучинск": "Щучинск қ.", "Аккольский район": "Ақкөл ауданы", "Аршалынский район": "Аршалы ауданы",
+    "Астраханский район": "Астрахан ауданы", "Атбасарский район": "Атбасар ауданы", "Буландынский район": "Бұланды ауданы",
+    "Бурабайский район": "Бурабай ауданы", "Егиндыкольский район": "Егіндікөл ауданы", "Ерейментауский район": "Ерейментау ауданы",
+    "Есильский район": "Есіл ауданы", "Жаксынский район": "Жақсы ауданы", "Жаркаинский район": "Жарқайын ауданы",
+    "Зерендинский район": "Зеренді ауданы", "Коргалжынский район": "Қорғалжын ауданы", "Сандыктауский район": "Сандықтау ауданы",
+    "Целиноградский район": "Целиноград ауданы", "Шортандинский район": "Шортанды ауданы",
+}
 
 
 # =========================
@@ -81,6 +95,10 @@ def validate_settings():
 
 def user_language(user_id: int) -> str:
     return USER_LANGUAGES.get(user_id, "ru")
+
+
+def localized_appeal_value(value: str, language: str, values: dict[str, str]) -> str:
+    return values.get(value, value) if language == "kk" else value
 
 
 def webapp_url(language: str) -> str:
@@ -328,32 +346,53 @@ async def handle_web_app_data(message: types.Message):
     else:
         crm_error = "CRM не настроена"
 
-    category = escape(str(saved["category"] or "Не указано"))
-    address = escape(str(saved["address"] or "Не указано"))
-    description = escape(str(saved["description"] or "Не указано"))
-    urgency = escape(str(saved["urgency"] or "Не указано"))
-    district = escape(str(saved["district"] or "Не указано"))
+    language = user_language(message.from_user.id)
+    category_value = localized_appeal_value(str(saved["category"] or ""), language, KK_CATEGORY_NAMES)
+    district_value = localized_appeal_value(str(saved["district"] or ""), language, KK_DISTRICT_NAMES)
+    category = escape(category_value or ("Көрсетілмеген" if language == "kk" else "Не указано"))
+    address = escape(str(saved["address"] or ("Көрсетілмеген" if language == "kk" else "Не указано")))
+    description = escape(str(saved["description"] or ("Көрсетілмеген" if language == "kk" else "Не указано")))
+    urgency = escape("Қалыпты" if language == "kk" else str(saved["urgency"] or "Не указано"))
+    district = escape(district_value or ("Көрсетілмеген" if language == "kk" else "Не указано"))
 
-    result_text = (
-        "✅ <b>Обращение принято и передано в CRM 109</b>\n\n"
-        f"<b>Номер CRM:</b> {escape(crm_result.number)}\n"
-        if crm_result else
-        "⚠️ <b>Обращение сохранено, но пока не передано в CRM</b>\n\n"
-        f"<b>Локальный номер:</b> {saved['appeal_id']}\n"
-    )
-    if crm_error:
-        result_text += "<b>Статус:</b> ожидает повторной отправки\n"
+    if language == "kk":
+        result_text = (
+            "✅ <b>Өтініш қабылданып, CRM 109 жүйесіне жіберілді</b>\n\n"
+            f"<b>CRM нөмірі:</b> {escape(crm_result.number)}\n"
+            if crm_result else
+            "⚠️ <b>Өтініш сақталды, бірақ CRM-ге әлі жіберілмеді</b>\n\n"
+            f"<b>Жергілікті нөмір:</b> {saved['appeal_id']}\n"
+        )
+        if crm_error:
+            result_text += "<b>Мәртебесі:</b> қайта жіберуді күтуде\n"
+        details_text = (
+            f"<b>Санат:</b> {category}\n"
+            f"<b>Аудан/қала:</b> {district}\n"
+            f"<b>Маңыздылығы:</b> {urgency}\n"
+            f"<b>Мекенжай:</b> {address}\n"
+            f"<b>Сипаттама:</b> {description}\n\n"
+            "Жаңа өтініш қалдыру үшін төмендегі батырманы басыңыз."
+        )
+    else:
+        result_text = (
+            "✅ <b>Обращение принято и передано в CRM 109</b>\n\n"
+            f"<b>Номер CRM:</b> {escape(crm_result.number)}\n"
+            if crm_result else
+            "⚠️ <b>Обращение сохранено, но пока не передано в CRM</b>\n\n"
+            f"<b>Локальный номер:</b> {saved['appeal_id']}\n"
+        )
+        if crm_error:
+            result_text += "<b>Статус:</b> ожидает повторной отправки\n"
+        details_text = (
+            f"<b>Категория:</b> {category}\n"
+            f"<b>Район/город:</b> {district}\n"
+            f"<b>Срочность:</b> {urgency}\n"
+            f"<b>Адрес:</b> {address}\n"
+            f"<b>Описание:</b> {description}\n\n"
+            "Чтобы подать новое обращение, снова нажмите кнопку внизу."
+        )
 
-    await message.answer(
-        result_text +
-        f"<b>Категория:</b> {category}\n"
-        f"<b>Район/город:</b> {district}\n"
-        f"<b>Срочность:</b> {urgency}\n"
-        f"<b>Адрес:</b> {address}\n"
-        f"<b>Описание:</b> {description}\n\n"
-        "Чтобы подать новое обращение, снова нажмите кнопку внизу.",
-        reply_markup=main_keyboard(user_language(message.from_user.id))
-    )
+    await message.answer(result_text + details_text, reply_markup=main_keyboard(language))
 
 
 @dp.message(F.text)
