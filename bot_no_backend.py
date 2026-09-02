@@ -12,12 +12,14 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from dotenv import load_dotenv
 
+from crm import CRMClient, CRMError
+
 
 # =========================
 # НАСТРОЙКИ
 # =========================
 
-load_dotenv()
+load_dotenv(override=True)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://miraisuenagi.github.io/109/").strip()
@@ -203,6 +205,7 @@ def save_appeal(appeal: dict, user: types.User):
 # =========================
 
 dp = Dispatcher()
+crm = CRMClient()
 
 
 @dp.message(CommandStart())
@@ -244,22 +247,47 @@ async def handle_web_app_data(message: types.Message):
 
     saved = save_appeal(appeal, message.from_user)
 
+    crm_result = None
+    crm_error = None
+    if crm.configured:
+        try:
+            crm_result = await crm.create_appeal({
+                "applicant_phone": saved["phone"],
+                "applicant_name": get_value(appeal, "name", "applicant_name", default=saved["full_name"]),
+                "telegram_user_id": saved["telegram_user_id"],
+                "category": saved["crm_category"] or saved["category"],
+                "district": saved["district"],
+                "address": saved["address"],
+                "description": saved["description"],
+            })
+        except CRMError as exc:
+            crm_error = str(exc)
+    else:
+        crm_error = "CRM не настроена"
+
     category = escape(str(saved["category"] or "Не указано"))
     address = escape(str(saved["address"] or "Не указано"))
     description = escape(str(saved["description"] or "Не указано"))
     urgency = escape(str(saved["urgency"] or "Не указано"))
     district = escape(str(saved["district"] or "Не указано"))
 
+    result_text = (
+        "✅ <b>Обращение принято и передано в CRM 109</b>\n\n"
+        f"<b>Номер CRM:</b> {escape(crm_result.number)}\n"
+        if crm_result else
+        "⚠️ <b>Обращение сохранено, но пока не передано в CRM</b>\n\n"
+        f"<b>Локальный номер:</b> {saved['appeal_id']}\n"
+    )
+    if crm_error:
+        result_text += "<b>Статус:</b> ожидает повторной отправки\n"
+
     await message.answer(
-        "✅ <b>Обращение принято</b>\n\n"
-        f"<b>Номер:</b> {saved['appeal_id']}\n"
+        result_text +
         f"<b>Категория:</b> {category}\n"
         f"<b>Район/город:</b> {district}\n"
         f"<b>Срочность:</b> {urgency}\n"
         f"<b>Адрес:</b> {address}\n"
         f"<b>Описание:</b> {description}\n\n"
-        "Данные сохранены на компьютере в файле:\n"
-        f"<code>{CSV_FILE}</code>\n\n"
         "Чтобы подать новое обращение, снова нажмите кнопку внизу.",
         reply_markup=main_keyboard()
     )
