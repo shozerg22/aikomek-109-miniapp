@@ -1002,6 +1002,11 @@
 
   <script>
     const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    const appLanguage = new URLSearchParams(window.location.search).get('lang') === 'kk' ? 'kk' : 'ru';
+    const uiText = {
+      ru: { next: 'Далее', submit: 'Отправить обращение', back: 'Назад' },
+      kk: { next: 'Келесі', submit: 'Өтінішті жіберу', back: 'Артқа' }
+    };
 
     if (tg) {
       tg.ready();
@@ -1059,6 +1064,96 @@
       urgency: document.getElementById('sumUrgency'),
       photos: document.getElementById('sumPhotos')
     };
+
+    function setLabel(selector, text) {
+      const element = document.querySelector(selector);
+      if (element) element.innerHTML = `${text} <span class="req">*</span>`;
+    }
+
+    function applyKazakhLanguage() {
+      document.documentElement.lang = 'kk';
+      document.title = 'Digital Aqmola 109 — өтініш';
+      document.querySelector('.brand-title').textContent = 'Digital Aqmola 109';
+      document.querySelector('.brand-subtitle').textContent = 'Өтініштердің цифрлық сервисі';
+      document.querySelector('.hero h1').textContent = 'Қала мәселесі туралы хабарлау';
+      document.querySelector('.hero p').textContent = 'Жағдайды сипаттап, орнын көрсетіп, өтінішті бірыңғай өңдеу жүйесіне жіберіңіз.';
+
+      const stepLabels = ['Не болды?', 'Қай жерде?', 'Сипаттама және жіберу'];
+      document.querySelectorAll('.steps .step span').forEach((element, index) => {
+        element.textContent = stepLabels[index];
+      });
+
+      const sectionTexts = [
+        ['БАҒЫТ', 'Не болды?', 'Өтініштің негізгі санатын таңдаңыз.'],
+        ['МЕКЕНЖАЙ', 'Мәселе қай жерде?', 'Мекенжайды қолмен жазыңыз немесе геолокацияны тіркеңіз.'],
+        ['СИПАТТАМА', 'Толық мәлімет қосыңыз', 'Мәселені қысқаша сипаттап, қажет болса фото тіркеңіз.'],
+        ['БАЙЛАНЫС', 'Өтініш берушімен қалай хабарласамыз?', 'Телефон нөмірі мәліметтерді нақтылау үшін қажет.'],
+        ['ТЕКСЕРУ', 'Қысқаша мәлімет', 'Деректер жіберер алдында автоматты түрде жаңартылады.']
+      ];
+      document.querySelectorAll('#appealForm .form-step').forEach((section, index) => {
+        const values = sectionTexts[index];
+        if (!values) return;
+        section.querySelector('.eyebrow').textContent = values[0];
+        section.querySelector('h2').textContent = values[1];
+        section.querySelector('.section-caption').textContent = values[2];
+      });
+
+      const categoryTexts = {
+        'Вывоз мусора': ['Қоқыс шығару', 'контейнерлер, шығару, аумақты тазалау'],
+        'Дороги': ['Жолдар', 'шұңқырлар, таңбалар, тротуарлар, жол белгілері'],
+        'Электроснабжение': ['Жарықтандыру', 'көше шамы, қараңғы аумақ, бағана'],
+        'Водоснабжение': ['Сумен жабдықтау', 'судың болмауы, апат, әлсіз қысым, ағып кету'],
+        'Отопление': ['Жылумен жабдықтау', 'суық батарея, апат, жылу желісі'],
+        'Канализация': ['Кәріз', 'бітелу, иіс, су басу, құдық'],
+        'Благоустройство двора': ['Ауланы абаттандыру', 'балалар алаңы, аула, жасыл желек'],
+        'Другое': ['Басқа', 'қала немесе ауданның өзге мәселесі']
+      };
+      categories.forEach(button => {
+        const values = categoryTexts[button.dataset.category];
+        if (!values) return;
+        button.querySelector('.category-title').textContent = values[0];
+        button.querySelector('.category-text').textContent = values[1];
+      });
+
+      setLabel('label[for="district"]', 'Аудан / қала');
+      setLabel('label[for="address"]', 'Мекенжай немесе бағдар');
+      setLabel('label[for="description"]', 'Мәселені толығырақ сипаттаңыз');
+      setLabel('label[for="name"]', 'Аты-жөніңіз');
+      setLabel('label[for="phone"]', 'Телефон');
+      address.placeholder = 'Көше, үй, қажет болса пәтер';
+      description.placeholder = 'Мысалы: үй маңындағы контейнерлер толып қалған, қоқыс бірнеше күннен бері шығарылмаған.';
+      nameInput.placeholder = 'Мысалы: Әлиев Аян';
+      phone.placeholder = '+7 777 000 00 00';
+
+      const districtNames = {
+        'г. Кокшетау': 'Көкшетау қ.', 'г. Степногорск': 'Степногорск қ.', 'г. Косшы': 'Қосшы қ.',
+        'г. Щучинск': 'Щучинск қ.', 'Аккольский район': 'Ақкөл ауданы', 'Аршалынский район': 'Аршалы ауданы',
+        'Астраханский район': 'Астрахан ауданы', 'Атбасарский район': 'Атбасар ауданы', 'Буландынский район': 'Бұланды ауданы',
+        'Бурабайский район': 'Бурабай ауданы', 'Егиндыкольский район': 'Егіндікөл ауданы', 'Ерейментауский район': 'Ерейментау ауданы',
+        'Есильский район': 'Есіл ауданы', 'Жаксынский район': 'Жақсы ауданы', 'Жаркаинский район': 'Жарқайын ауданы',
+        'Зерендинский район': 'Зеренді ауданы', 'Коргалжынский район': 'Қорғалжын ауданы', 'Сандыктауский район': 'Сандықтау ауданы',
+        'Целиноградский район': 'Целиноград ауданы', 'Шортандинский район': 'Шортанды ауданы'
+      };
+      [...district.options].forEach(option => {
+        const original = option.value || option.textContent;
+        option.value = original;
+        option.textContent = original ? (districtNames[original] || original) : 'Ауданды таңдаңыз';
+      });
+      geoBtn.lastChild.textContent = ' Геолокацияны анықтау';
+      clearGeoBtn.textContent = 'Тазарту';
+      geoStatus.textContent = 'Геолокация тіркелмеген';
+      document.querySelector('.upload-title').textContent = 'Фото тіркеу';
+      document.querySelector('.upload-text').textContent = '3 суретке дейін. Фотолар өтінішке тіркеледі.';
+      document.querySelectorAll('.summary-row span:first-child').forEach((element, index) => {
+        element.textContent = ['Санат', 'Орны', 'Телефон', 'Фото'][index];
+      });
+      summary.category.textContent = 'Таңдалмаған';
+      summary.district.textContent = 'Көрсетілмеген';
+      summary.urgency.textContent = 'Көрсетілмеген';
+      backBtn.textContent = uiText.kk.back;
+    }
+
+    if (appLanguage === 'kk') applyKazakhLanguage();
 
     let toastTimer;
 
@@ -1197,8 +1292,8 @@
       });
       backBtn.hidden = currentStep === 0;
       nextBtn.querySelector('span').textContent = currentStep === orderedSections.length - 1
-        ? 'Отправить обращение'
-        : 'Далее';
+        ? uiText[appLanguage].submit
+        : uiText[appLanguage].next;
       window.scrollTo({ top: 0, behavior: 'smooth' });
       updateSummary();
     }
