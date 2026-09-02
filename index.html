@@ -988,7 +988,7 @@
           <div class="summary-card" aria-live="polite">
             <div class="summary-row"><span>Категория</span><span id="sumCategory">Не выбрана</span></div>
             <div class="summary-row"><span>Локация</span><span id="sumDistrict">Не указана</span></div>
-            <div class="summary-row"><span>Срочность</span><span id="sumUrgency">Обычная</span></div>
+            <div class="summary-row"><span>Телефон</span><span id="sumUrgency">Не указан</span></div>
             <div class="summary-row"><span>Фото</span><span id="sumPhotos">0</span></div>
           </div>
         </section>
@@ -1081,7 +1081,7 @@
     function updateSummary() {
       summary.category.textContent = categoryInput.value || 'Не выбрана';
       summary.district.textContent = district.value || 'Не указана';
-      summary.urgency.textContent = urgency.value || 'Обычная';
+      summary.urgency.textContent = phone.value.trim() || 'Не указан';
       summary.photos.textContent = String(Math.min(photos.files.length, 3));
       counter.textContent = `${description.value.length}/600`;
     }
