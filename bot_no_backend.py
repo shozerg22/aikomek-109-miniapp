@@ -4,12 +4,19 @@ import json
 import os
 from datetime import datetime
 from html import escape
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 from dotenv import load_dotenv
 
 from crm import CRMClient, CRMError
@@ -27,6 +34,34 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://miraisuenagi.github.io/109/").stri
 DATA_DIR = "data"
 CSV_FILE = os.path.join(DATA_DIR, "appeals.csv")
 JSONL_FILE = os.path.join(DATA_DIR, "appeals.jsonl")
+
+TEXT = {
+    "ru": {
+        "choose_language": "Выберите язык / Тілді таңдаңыз:",
+        "welcome": (
+            "Добро пожаловать в <b>Digital Aqmola 109</b>.\n\n"
+            "Здесь вы можете оставить обращение в службу 109.\n\n"
+            "👇 Нажмите большую кнопку внизу экрана:\n\n"
+            "<b>🚨 СООБЩИТЬ О ПРОБЛЕМЕ</b>"
+        ),
+        "open_app": "🚨 СООБЩИТЬ О ПРОБЛЕМЕ",
+        "placeholder": "Нажмите большую кнопку ниже",
+        "help": "Чтобы подать обращение, нажмите большую кнопку внизу экрана.",
+    },
+    "kk": {
+        "choose_language": "Тілді таңдаңыз / Выберите язык:",
+        "welcome": (
+            "<b>Digital Aqmola 109</b> жүйесіне қош келдіңіз.\n\n"
+            "Мұнда 109 қызметіне өтініш қалдыра аласыз.\n\n"
+            "👇 Төмендегі үлкен батырманы басыңыз:\n\n"
+            "<b>🚨 МӘСЕЛЕ ТУРАЛЫ ХАБАРЛАУ</b>"
+        ),
+        "open_app": "🚨 МӘСЕЛЕ ТУРАЛЫ ХАБАРЛАУ",
+        "placeholder": "Төмендегі үлкен батырманы басыңыз",
+        "help": "Өтініш қалдыру үшін төмендегі үлкен батырманы басыңыз.",
+    },
+}
+USER_LANGUAGES: dict[int, str] = {}
 
 
 # =========================
@@ -48,20 +83,39 @@ def validate_settings():
 # КЛАВИАТУРА
 # =========================
 
-def main_keyboard():
+def user_language(user_id: int) -> str:
+    return USER_LANGUAGES.get(user_id, "ru")
+
+
+def webapp_url(language: str) -> str:
+    parsed = urlparse(WEBAPP_URL)
+    query = dict(parse_qsl(parsed.query))
+    query["lang"] = language
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def language_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🇷🇺 Русский", callback_data="language:ru"),
+        InlineKeyboardButton(text="🇰🇿 Қазақша", callback_data="language:kk"),
+    ]])
+
+
+def main_keyboard(language: str):
+    text = TEXT[language]
     return ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(
-                    text="🚨 СООБЩИТЬ О ПРОБЛЕМЕ",
-                    web_app=WebAppInfo(url=WEBAPP_URL)
+                    text=text["open_app"],
+                    web_app=WebAppInfo(url=webapp_url(language))
                 )
             ]
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
         is_persistent=True,
-        input_field_placeholder="Нажмите большую кнопку ниже"
+        input_field_placeholder=text["placeholder"]
     )
 
 
@@ -211,26 +265,39 @@ crm = CRMClient()
 @dp.message(CommandStart())
 async def start(message: types.Message):
     await message.answer(
-        "Добро пожаловать в <b>Digital Aqmola 109</b>.\n\n"
-        "Здесь можно быстро сообщить о проблеме:\n"
-        "• мусор\n"
-        "• дороги\n"
-        "• освещение\n"
-        "• вода\n"
-        "• отопление\n"
-        "• другие вопросы\n\n"
-        "👇 Нажмите большую кнопку внизу экрана:\n\n"
-        "<b>🚨 СООБЩИТЬ О ПРОБЛЕМЕ</b>",
-        reply_markup=main_keyboard()
+        TEXT["ru"]["choose_language"],
+        reply_markup=language_keyboard()
+    )
+
+
+@dp.callback_query(F.data.startswith("language:"))
+async def select_language(callback: types.CallbackQuery):
+    language = callback.data.rsplit(":", maxsplit=1)[-1]
+    if language not in TEXT:
+        await callback.answer()
+        return
+    USER_LANGUAGES[callback.from_user.id] = language
+    await callback.answer()
+    await callback.message.answer(
+        TEXT[language]["welcome"],
+        reply_markup=main_keyboard(language)
+    )
+
+
+@dp.message(Command("language"))
+async def language_command(message: types.Message):
+    await message.answer(
+        TEXT[user_language(message.from_user.id)]["choose_language"],
+        reply_markup=language_keyboard()
     )
 
 
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
+    language = user_language(message.from_user.id)
     await message.answer(
-        "Чтобы подать обращение, нажмите большую кнопку внизу экрана:\n\n"
-        "<b>🚨 СООБЩИТЬ О ПРОБЛЕМЕ</b>",
-        reply_markup=main_keyboard()
+        TEXT[language]["help"],
+        reply_markup=main_keyboard(language)
     )
 
 
@@ -289,16 +356,16 @@ async def handle_web_app_data(message: types.Message):
         f"<b>Адрес:</b> {address}\n"
         f"<b>Описание:</b> {description}\n\n"
         "Чтобы подать новое обращение, снова нажмите кнопку внизу.",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard(user_language(message.from_user.id))
     )
 
 
 @dp.message(F.text)
 async def any_text(message: types.Message):
+    language = user_language(message.from_user.id)
     await message.answer(
-        "👇 Чтобы сообщить о проблеме, нажмите большую кнопку внизу экрана:\n\n"
-        "<b>🚨 СООБЩИТЬ О ПРОБЛЕМЕ</b>",
-        reply_markup=main_keyboard()
+        TEXT[language]["help"],
+        reply_markup=main_keyboard(language)
     )
 
 
