@@ -15,7 +15,6 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
-    FSInputFile,
     WebAppInfo,
 )
 from dotenv import load_dotenv
@@ -35,6 +34,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "https://miraisuenagi.github.io/109/").stri
 DATA_DIR = "data"
 CSV_FILE = os.path.join(DATA_DIR, "appeals.csv")
 JSONL_FILE = os.path.join(DATA_DIR, "appeals.jsonl")
+IDEAS_FILE = os.path.join(DATA_DIR, "citizen_ideas.jsonl")
 
 TEXT = {
     "ru": {
@@ -44,7 +44,9 @@ TEXT = {
             "Здесь вы можете оставить обращение в службу 109."
         ),
         "open_app": "Оставить обращение",
-        "qr": "QR-доступ",
+        "ideas": "Идеи граждан",
+        "ideas_prompt": "Напишите вашу идею или предложение для города одним сообщением.",
+        "ideas_saved": "Спасибо! Ваша идея сохранена и будет рассмотрена.",
         "placeholder": "Открыть форму обращения",
         "help": "Для смены языка используйте команду /language.",
     },
@@ -55,12 +57,15 @@ TEXT = {
             "Мұнда 109 қызметіне өтініш қалдыра аласыз."
         ),
         "open_app": "Өтініш қалдыру",
-        "qr": "QR-қолжетімділік",
+        "ideas": "Азаматтар идеясы",
+        "ideas_prompt": "Қалаға қатысты идеяңызды немесе ұсынысыңызды бір хабарламада жазыңыз.",
+        "ideas_saved": "Рақмет! Идеяңыз сақталды және қарастырылады.",
         "placeholder": "Өтініш формасын ашу",
         "help": "Тілді өзгерту үшін /language пәрменін қолданыңыз.",
     },
 }
 USER_LANGUAGES: dict[int, str] = {}
+IDEA_WAITING_USERS: set[int] = set()
 KK_CATEGORY_NAMES = {
     "Вывоз мусора": "Қоқыс шығару", "Дороги": "Жолдар", "Электроснабжение": "Жарықтандыру",
     "Водоснабжение": "Сумен жабдықтау", "Отопление": "Жылумен жабдықтау", "Канализация": "Кәріз",
@@ -128,7 +133,7 @@ def main_keyboard(language: str):
                     web_app=WebAppInfo(url=webapp_url(language))
                 )
             ],
-            [KeyboardButton(text=text["qr"])]
+            [KeyboardButton(text=text["ideas"])]
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -319,17 +324,11 @@ async def help_command(message: types.Message):
     )
 
 
-@dp.message(F.text.in_([TEXT["ru"]["qr"], TEXT["kk"]["qr"]]))
-@dp.message(Command("qr"))
-async def qr_access(message: types.Message):
+@dp.message(F.text.in_([TEXT["ru"]["ideas"], TEXT["kk"]["ideas"]]))
+async def start_idea(message: types.Message):
     language = user_language(message.from_user.id)
-    caption = (
-        "Сканируйте QR-код, чтобы открыть Digital Aqmola 109."
-        if language == "ru" else
-        "Digital Aqmola 109 ашу үшін QR-кодты сканерлеңіз."
-    )
-    photo = FSInputFile(os.path.join("assets", "qr", "digitalaqmola_bot.png"))
-    await message.answer_photo(photo, caption=caption, reply_markup=main_keyboard(language))
+    IDEA_WAITING_USERS.add(message.from_user.id)
+    await message.answer(TEXT[language]["ideas_prompt"], reply_markup=main_keyboard(language))
 
 
 @dp.message(F.web_app_data)
@@ -415,6 +414,20 @@ async def handle_web_app_data(message: types.Message):
 @dp.message(F.text)
 async def any_text(message: types.Message):
     language = user_language(message.from_user.id)
+    if message.from_user.id in IDEA_WAITING_USERS:
+        idea = message.text.strip()
+        if idea:
+            ensure_storage()
+            with open(IDEAS_FILE, "a", encoding="utf-8") as file:
+                file.write(json.dumps({
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "telegram_user_id": message.from_user.id,
+                    "language": language,
+                    "text": idea,
+                }, ensure_ascii=False) + "\n")
+            IDEA_WAITING_USERS.discard(message.from_user.id)
+            await message.answer(TEXT[language]["ideas_saved"], reply_markup=main_keyboard(language))
+            return
     await message.answer(
         TEXT[language]["help"],
         reply_markup=main_keyboard(language)
