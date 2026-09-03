@@ -15,6 +15,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    FSInputFile,
     WebAppInfo,
 )
 from dotenv import load_dotenv
@@ -43,6 +44,7 @@ TEXT = {
             "Здесь вы можете оставить обращение в службу 109."
         ),
         "open_app": "Оставить обращение",
+        "qr": "QR-доступ",
         "placeholder": "Открыть форму обращения",
         "help": "Для смены языка используйте команду /language.",
     },
@@ -53,6 +55,7 @@ TEXT = {
             "Мұнда 109 қызметіне өтініш қалдыра аласыз."
         ),
         "open_app": "Өтініш қалдыру",
+        "qr": "QR-қолжетімділік",
         "placeholder": "Өтініш формасын ашу",
         "help": "Тілді өзгерту үшін /language пәрменін қолданыңыз.",
     },
@@ -124,7 +127,8 @@ def main_keyboard(language: str):
                     text=text["open_app"],
                     web_app=WebAppInfo(url=webapp_url(language))
                 )
-            ]
+            ],
+            [KeyboardButton(text=text["qr"])]
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -313,6 +317,19 @@ async def help_command(message: types.Message):
         TEXT[language]["help"],
         reply_markup=main_keyboard(language)
     )
+
+
+@dp.message(F.text.in_([TEXT["ru"]["qr"], TEXT["kk"]["qr"]]))
+@dp.message(Command("qr"))
+async def qr_access(message: types.Message):
+    language = user_language(message.from_user.id)
+    caption = (
+        "Сканируйте QR-код, чтобы открыть Digital Aqmola 109."
+        if language == "ru" else
+        "Digital Aqmola 109 ашу үшін QR-кодты сканерлеңіз."
+    )
+    photo = FSInputFile(os.path.join("assets", "qr", "digitalaqmola_bot.png"))
+    await message.answer_photo(photo, caption=caption, reply_markup=main_keyboard(language))
 
 
 @dp.message(F.web_app_data)
