@@ -47,6 +47,16 @@ TEXT = {
         "ideas": "Идеи граждан",
         "ideas_prompt": "Напишите вашу идею или предложение для города одним сообщением.",
         "ideas_saved": "Спасибо! Ваша идея сохранена и будет рассмотрена.",
+        "guide": "Как подать обращение",
+        "guide_text": (
+            "Как подать обращение:\n\n"
+            "1. Нажмите «Оставить обращение».\n"
+            "2. Выберите категорию проблемы.\n"
+            "3. Укажите район, адрес и описание.\n"
+            "4. При необходимости прикрепите фото.\n"
+            "5. Укажите имя, фамилию и телефон, затем отправьте обращение.\n\n"
+            "Видеоинструкция появится здесь позже."
+        ),
         "placeholder": "Открыть форму обращения",
         "help": "Для смены языка используйте команду /language.",
     },
@@ -60,6 +70,16 @@ TEXT = {
         "ideas": "Азаматтар идеясы",
         "ideas_prompt": "Қалаға қатысты идеяңызды немесе ұсынысыңызды бір хабарламада жазыңыз.",
         "ideas_saved": "Рақмет! Идеяңыз сақталды және қарастырылады.",
+        "guide": "Өтінішті қалай жіберу керек?",
+        "guide_text": (
+            "Өтінішті қалай жіберуге болады:\n\n"
+            "1. «Өтініш қалдыру» батырмасын басыңыз.\n"
+            "2. Мәселе санатын таңдаңыз.\n"
+            "3. Ауданды, мекенжайды және сипаттаманы жазыңыз.\n"
+            "4. Қажет болса, фото тіркеңіз.\n"
+            "5. Аты-жөніңіз бен телефон нөміріңізді көрсетіп, өтінішті жіберіңіз.\n\n"
+            "Бейненұсқаулық кейін осы жерде болады."
+        ),
         "placeholder": "Өтініш формасын ашу",
         "help": "Тілді өзгерту үшін /language пәрменін қолданыңыз.",
     },
@@ -133,7 +153,7 @@ def main_keyboard(language: str):
                     web_app=WebAppInfo(url=webapp_url(language))
                 )
             ],
-            [KeyboardButton(text=text["ideas"])]
+            [KeyboardButton(text=text["ideas"]), KeyboardButton(text=text["guide"])]
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -322,6 +342,12 @@ async def help_command(message: types.Message):
         TEXT[language]["help"],
         reply_markup=main_keyboard(language)
     )
+
+
+@dp.message(F.text.in_([TEXT["ru"]["guide"], TEXT["kk"]["guide"]]))
+async def guide(message: types.Message):
+    language = user_language(message.from_user.id)
+    await message.answer(TEXT[language]["guide_text"], reply_markup=main_keyboard(language))
 
 
 @dp.message(F.text.in_([TEXT["ru"]["ideas"], TEXT["kk"]["ideas"]]))
