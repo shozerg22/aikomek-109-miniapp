@@ -151,7 +151,7 @@ def main_keyboard(language: str):
                     web_app=WebAppInfo(url=webapp_url(language))
                 )
             ],
-            [KeyboardButton(text=text["ideas"]), KeyboardButton(text=text["guide"])]
+            [KeyboardButton(text=text["guide"])]
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
