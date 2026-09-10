@@ -380,6 +380,8 @@ async def handle_web_app_data(message: types.Message):
                 "district": saved["district"],
                 "address": saved["address"],
                 "description": saved["description"],
+                "latitude": saved["location_lat"],
+                "longitude": saved["location_lng"],
             })
         except CRMError as exc:
             crm_error = str(exc)

@@ -214,6 +214,10 @@ class CRMClient:
             "street": appeal["address"],
             "telegram_chat_id": str(appeal["telegram_user_id"]),
         }
+        # CRM renders a map in the appeal card when both coordinates are present.
+        if appeal.get("latitude") not in (None, "") and appeal.get("longitude") not in (None, ""):
+            payload["latitude"] = appeal["latitude"]
+            payload["longitude"] = appeal["longitude"]
         result = await self._request("POST", "appeals/", json=payload)
         return CRMResult(
             appeal_id=int(result["id"]),

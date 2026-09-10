@@ -500,6 +500,29 @@
       margin-top: 10px;
     }
 
+    .map-picker {
+      margin-top: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+    }
+
+    .map-picker[hidden] { display: none; }
+
+    #locationMap {
+      height: 250px;
+      width: 100%;
+      background: #edf3fa;
+    }
+
+    .map-picker-caption {
+      padding: 9px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     .secondary-btn {
       min-height: 48px;
       display: inline-flex;
@@ -911,6 +934,14 @@
               </button>
               <button class="secondary-btn" type="button" id="clearGeoBtn">Сбросить</button>
             </div>
+            <button class="secondary-btn" type="button" id="mapBtn" style="width:100%; margin-top:8px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 3v15M15 6v15" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span id="mapBtnText">Указать точку на карте</span>
+            </button>
+            <div class="map-picker" id="mapPicker" hidden>
+              <div id="locationMap" aria-label="Карта для выбора точки"></div>
+              <div class="map-picker-caption" id="mapCaption">Нажмите на карту, чтобы поставить точку проблемы.</div>
+            </div>
             <div class="hint-row"><span id="geoStatus">Геопозиция не приложена</span></div>
             <input id="lat" name="lat" type="hidden" />
             <input id="lng" name="lng" type="hidden" />
@@ -1000,6 +1031,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQOtvfR0SV1KPm6xZ6p6wJf9Q/2T9sw=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
     const appLanguage = new URLSearchParams(window.location.search).get('lang') === 'kk' ? 'kk' : 'ru';
@@ -1063,6 +1096,10 @@
     const geoStatus = document.getElementById('geoStatus');
     const lat = document.getElementById('lat');
     const lng = document.getElementById('lng');
+    const mapBtn = document.getElementById('mapBtn');
+    const mapBtnText = document.getElementById('mapBtnText');
+    const mapPicker = document.getElementById('mapPicker');
+    const mapCaption = document.getElementById('mapCaption');
     const toast = document.getElementById('toast');
     const formSections = [...document.querySelectorAll('#appealForm .form-step')];
     const sectionOrder = [0, 1, 2, 3, 4];
@@ -1071,6 +1108,31 @@
     const backBtn = document.getElementById('backBtn');
     const nextBtn = document.getElementById('nextBtn');
     let currentStep = 0;
+    let locationMap;
+    let locationMarker;
+
+    const locationText = {
+      ru: {
+        openMap: 'Указать точку на карте', closeMap: 'Скрыть карту',
+        mapCaption: 'Нажмите на карту, чтобы поставить точку проблемы.',
+        noLocation: 'Геопозиция не приложена', finding: 'Определяем геолокацию...',
+        attached: 'Геопозиция приложена', mapPoint: 'Точка на карте выбрана',
+        noGeo: 'Не удалось получить геопозицию', geoDenied: 'Разрешите доступ к геолокации или укажите адрес вручную',
+        unsupported: 'Геолокация не поддерживается этим устройством'
+      },
+      kk: {
+        openMap: 'Картадан нүкте көрсету', closeMap: 'Картаны жасыру',
+        mapCaption: 'Мәселе орнын белгілеу үшін картаны басыңыз.',
+        noLocation: 'Геолокация тіркелмеген', finding: 'Геолокация анықталуда...',
+        attached: 'Геолокация тіркелді', mapPoint: 'Картадағы нүкте таңдалды',
+        noGeo: 'Геолокацияны анықтау мүмкін болмады', geoDenied: 'Геолокацияға рұқсат беріңіз немесе мекенжайды қолмен жазыңыз',
+        unsupported: 'Бұл құрылғы геолокацияны қолдамайды'
+      }
+    };
+
+    function locationLabels() {
+      return locationText[appLanguage];
+    }
 
     const summary = {
       category: document.getElementById('sumCategory'),
@@ -1151,7 +1213,9 @@
       });
       geoBtn.lastChild.textContent = ' Геолокацияны анықтау';
       clearGeoBtn.textContent = 'Тазарту';
-      geoStatus.textContent = 'Геолокация тіркелмеген';
+      mapBtnText.textContent = locationLabels().openMap;
+      mapCaption.textContent = locationLabels().mapCaption;
+      geoStatus.textContent = locationLabels().noLocation;
       document.querySelector('.upload-title').textContent = 'Фото тіркеу';
       document.querySelector('.upload-text').textContent = '3 суретке дейін. Фотолар өтінішке тіркеледі.';
       document.querySelectorAll('.summary-row span:first-child').forEach((element, index) => {
@@ -1227,27 +1291,68 @@
       updateSummary();
     });
 
+    function setLocationPoint(latitude, longitude, source) {
+      lat.value = Number(latitude).toFixed(6);
+      lng.value = Number(longitude).toFixed(6);
+      const labels = locationLabels();
+      geoStatus.textContent = `${source || labels.mapPoint}: ${lat.value}, ${lng.value}`;
+
+      if (locationMap) {
+        const point = [Number(lat.value), Number(lng.value)];
+        if (locationMarker) locationMarker.setLatLng(point);
+        else locationMarker = L.marker(point).addTo(locationMap);
+        locationMap.setView(point, Math.max(locationMap.getZoom(), 16));
+      }
+    }
+
+    function initializeMap() {
+      if (locationMap || !window.L) return;
+      const defaultPoint = [53.2837, 69.3839];
+      const initialPoint = lat.value && lng.value ? [Number(lat.value), Number(lng.value)] : defaultPoint;
+      locationMap = L.map('locationMap', { zoomControl: true }).setView(initialPoint, lat.value ? 16 : 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(locationMap);
+      locationMap.on('click', event => setLocationPoint(event.latlng.lat, event.latlng.lng));
+      if (lat.value && lng.value) setLocationPoint(lat.value, lng.value);
+    }
+
+    mapBtn.addEventListener('click', () => {
+      const isOpening = mapPicker.hidden;
+      mapPicker.hidden = !isOpening;
+      mapBtnText.textContent = isOpening ? locationLabels().closeMap : locationLabels().openMap;
+      if (!isOpening) return;
+      if (!window.L) {
+        mapPicker.hidden = true;
+        mapBtnText.textContent = locationLabels().openMap;
+        showToast(appLanguage === 'kk' ? 'Картаны жүктеу мүмкін болмады' : 'Не удалось загрузить карту');
+        return;
+      }
+      initializeMap();
+      setTimeout(() => locationMap && locationMap.invalidateSize(), 100);
+    });
+
     geoBtn.addEventListener('click', () => {
+      const labels = locationLabels();
       if (!navigator.geolocation) {
-        showToast('Геолокация не поддерживается этим устройством');
+        showToast(labels.unsupported);
         return;
       }
 
       geoBtn.disabled = true;
-      geoStatus.textContent = 'Определяем геолокацию...';
+      geoStatus.textContent = labels.finding;
 
       navigator.geolocation.getCurrentPosition(
         position => {
-          lat.value = position.coords.latitude.toFixed(6);
-          lng.value = position.coords.longitude.toFixed(6);
-          geoStatus.textContent = `Геопозиция приложена: ${lat.value}, ${lng.value}`;
+          setLocationPoint(position.coords.latitude, position.coords.longitude, labels.attached);
           geoBtn.disabled = false;
-          showToast('Геолокация приложена к обращению');
+          showToast(labels.attached);
         },
         () => {
-          geoStatus.textContent = 'Не удалось получить геопозицию';
+          geoStatus.textContent = labels.noGeo;
           geoBtn.disabled = false;
-          showToast('Разрешите доступ к геолокации или укажите адрес вручную');
+          showToast(labels.geoDenied);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -1256,7 +1361,11 @@
     clearGeoBtn.addEventListener('click', () => {
       lat.value = '';
       lng.value = '';
-      geoStatus.textContent = 'Геопозиция не приложена';
+      geoStatus.textContent = locationLabels().noLocation;
+      if (locationMarker && locationMap) {
+        locationMap.removeLayer(locationMarker);
+        locationMarker = null;
+      }
     });
 
     function markInvalid(el) {
