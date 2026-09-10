@@ -925,8 +925,8 @@
           <input id="urgency" name="urgency" type="hidden" value="Обычная" />
 
           <div class="field" style="margin-top:12px">
-            <label for="address">Адрес или ориентир <span class="req">*</span></label>
-            <input class="control" id="address" name="address" placeholder="Улица, дом, при необходимости квартира" autocomplete="street-address" required />
+            <label for="address">Адрес или ориентир</label>
+            <input class="control" id="address" name="address" placeholder="Улица, дом, при необходимости квартира" autocomplete="street-address" />
             <div class="location-actions">
               <button class="secondary-btn primary-soft" type="button" id="geoBtn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21s6.5-5.4 6.5-11A6.5 6.5 0 105.5 10C5.5 15.6 12 21 12 21z" stroke="currentColor" stroke-width="1.8"/><path d="M12 12.2a2.2 2.2 0 100-4.4 2.2 2.2 0 000 4.4z" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -1146,6 +1146,11 @@
       if (element) element.innerHTML = `${text} <span class="req">*</span>`;
     }
 
+    function setOptionalLabel(selector, text) {
+      const element = document.querySelector(selector);
+      if (element) element.textContent = text;
+    }
+
     function applyKazakhLanguage() {
       document.documentElement.lang = 'kk';
       document.title = 'Digital Aqmola 109 — өтініш';
@@ -1192,7 +1197,7 @@
       });
 
       setLabel('label[for="district"]', 'Аудан / қала');
-      setLabel('label[for="address"]', 'Мекенжай немесе бағдар');
+      setOptionalLabel('label[for="address"]', 'Мекенжай немесе бағдар');
       setLabel('label[for="description"]', 'Мәселені толығырақ сипаттаңыз');
       setLabel('label[for="name"]', 'Аты-жөніңіз');
       setLabel('label[for="phone"]', 'Телефон');
@@ -1383,8 +1388,8 @@
         markInvalid(district);
         return false;
       }
-      if (currentStep === 1 && address.value.trim().length < 3) {
-        showToast('Укажите адрес или ориентир');
+      if (currentStep === 1 && address.value.trim().length < 3 && (!lat.value || !lng.value)) {
+        showToast(appLanguage === 'kk' ? 'Мекенжайды жазыңыз немесе картадан нүкте көрсетіңіз' : 'Укажите адрес или отметьте точку на карте');
         markInvalid(address);
         return false;
       }
