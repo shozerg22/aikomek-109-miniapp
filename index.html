@@ -966,12 +966,12 @@
           <div class="field" style="margin-top:12px">
             <label>Фото</label>
             <label class="upload" for="photos">
-              <input id="photos" name="photos" type="file" accept="image/*" multiple />
+              <input id="photos" name="photos" type="file" accept="image/*" multiple disabled hidden />
               <span class="upload-inner">
                 <span class="upload-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4.5 7.2A2.7 2.7 0 017.2 4.5h9.6a2.7 2.7 0 012.7 2.7v9.6a2.7 2.7 0 01-2.7 2.7H7.2a2.7 2.7 0 01-2.7-2.7V7.2z" stroke="currentColor" stroke-width="1.8"/><path d="M8 15l2.7-2.7a1 1 0 011.4 0l1.1 1.1.8-.8a1 1 0 011.4 0L18 15.2M8.8 8.8h.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span>
-                  <span class="upload-title">Прикрепить фото</span>
-                  <span class="upload-text">До 3 изображений. Для MVP файлы отображаются как предпросмотр.</span>
+                  <span class="upload-title">Фото через Telegram</span>
+                  <span class="upload-text">После отправки заявки бот предложит прикрепить фото в чате. Отправьте его ответом на сообщение с номером заявки.</span>
                 </span>
               </span>
             </label>
@@ -1221,8 +1221,8 @@
       mapBtnText.textContent = locationLabels().openMap;
       mapCaption.textContent = locationLabels().mapCaption;
       geoStatus.textContent = locationLabels().noLocation;
-      document.querySelector('.upload-title').textContent = 'Фото тіркеу';
-      document.querySelector('.upload-text').textContent = '3 суретке дейін. Фотолар өтінішке тіркеледі.';
+      document.querySelector('.upload-title').textContent = 'Telegram арқылы фото';
+      document.querySelector('.upload-text').textContent = 'Өтініш жіберілген соң бот чатта фото тіркеуді ұсынады. Өтініш нөмірі бар хабарламаға жауап ретінде фото жіберіңіз.';
       document.querySelectorAll('.summary-row span:first-child').forEach((element, index) => {
         element.textContent = ['Санат', 'Орны', 'Телефон', 'Фото'][index];
       });

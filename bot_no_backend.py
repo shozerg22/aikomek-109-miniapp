@@ -2,6 +2,8 @@ import asyncio
 import csv
 import json
 import os
+import sqlite3
+import logging
 from datetime import datetime
 from html import escape
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -20,6 +22,7 @@ from aiogram.types import (
 from dotenv import load_dotenv
 
 from crm import CRMClient, CRMError
+from crm_upload import CRMUploader, UploadError
 
 
 # =========================
@@ -35,6 +38,13 @@ DATA_DIR = "data"
 CSV_FILE = os.path.join(DATA_DIR, "appeals.csv")
 JSONL_FILE = os.path.join(DATA_DIR, "appeals.jsonl")
 IDEAS_FILE = os.path.join(DATA_DIR, "citizen_ideas.jsonl")
+
+
+def photo_targets():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    conn = sqlite3.connect(os.path.join(DATA_DIR, 'photo_targets.db'))
+    conn.execute('CREATE TABLE IF NOT EXISTS targets (chat_id INTEGER, message_id INTEGER, user_id INTEGER, crm_id INTEGER, number TEXT, language TEXT, PRIMARY KEY(chat_id,message_id))')
+    return conn
 
 TEXT = {
     "ru": {
@@ -131,6 +141,7 @@ def webapp_url(language: str) -> str:
     parsed = urlparse(WEBAPP_URL)
     query = dict(parse_qsl(parsed.query))
     query["lang"] = language
+    query['v'] = 'photos-20260927'
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
@@ -435,6 +446,31 @@ async def handle_web_app_data(message: types.Message):
         )
 
     await message.answer(result_text + details_text, reply_markup=main_keyboard(language))
+    if crm_result:
+        prompt = (f'Чтобы прикрепить фото к обращению № {crm_result.number}, отправьте фото ответом на это сообщение. До 10 МБ на файл.' if language == 'ru' else f'№ {crm_result.number} өтінішке фото тіркеу үшін осы хабарламаға жауап ретінде фото жіберіңіз. Бір файл 10 МБ-тан аспауы тиіс.')
+        sent = await message.answer(prompt, reply_markup=types.ForceReply(selective=True))
+        with photo_targets() as conn:
+            conn.execute('INSERT OR REPLACE INTO targets VALUES (?,?,?,?,?,?)', (sent.chat.id, sent.message_id, message.from_user.id, crm_result.appeal_id, crm_result.number, language))
+
+
+@dp.message(F.photo | F.document.mime_type.startswith('image/'))
+async def attach_photo(message: types.Message):
+    reply_id = message.reply_to_message.message_id if message.reply_to_message else 0
+    with photo_targets() as conn:
+        target = conn.execute('SELECT crm_id,number,language FROM targets WHERE chat_id=? AND message_id=? AND user_id=?', (message.chat.id, reply_id, message.from_user.id)).fetchone()
+    if not target:
+        lang = user_language(message.from_user.id)
+        await message.answer('Отправьте фото ответом на сообщение бота с предложением прикрепить фото к нужной заявке.' if lang == 'ru' else 'Фотоны қажетті өтінішке фото тіркеу туралы бот хабарламасына жауап ретінде жіберіңіз.')
+        return
+    crm_id, number, language = target
+    file_id = message.photo[-1].file_id if message.photo else message.document.file_id
+    try:
+        await CRMUploader().upload_telegram(message.bot, crm_id, file_id)
+    except UploadError as exc:
+        logging.warning('Photo upload failed for CRM appeal %s: %s', crm_id, exc)
+        await message.answer('Фото не загрузилось. Проверьте формат (JPEG, PNG, WebP) и размер до 10 МБ. Можно повторить отправку ответом на то же сообщение.' if language == 'ru' else 'Фото жүктелмеді. Форматы JPEG, PNG, WebP және көлемі 10 МБ-тан аспауы тиіс. Сол хабарламаға жауап ретінде қайта жіберуге болады.')
+        return
+    await message.answer(f'Фото прикреплено к обращению № {number}.' if language == 'ru' else f'Фото № {number} өтінішке тіркелді.')
 
 
 @dp.message(F.text)
