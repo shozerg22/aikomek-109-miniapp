@@ -38,6 +38,30 @@ DATA_DIR = "data"
 CSV_FILE = os.path.join(DATA_DIR, "appeals.csv")
 JSONL_FILE = os.path.join(DATA_DIR, "appeals.jsonl")
 IDEAS_FILE = os.path.join(DATA_DIR, "citizen_ideas.jsonl")
+DELIVERY_FILE = os.path.join(DATA_DIR, 'delivery.jsonl')
+
+
+def read_records(path):
+    if not os.path.exists(path):
+        return []
+    records = []
+    with open(path, encoding='utf-8-sig') as stream:
+        for line in stream:
+            try:
+                value = json.loads(line)
+                if isinstance(value, dict):
+                    records.append(value)
+            except json.JSONDecodeError:
+                logging.warning('Skipped damaged history record')
+    return records
+
+
+def record_delivery(local_id, result, error):
+    with open(DELIVERY_FILE, 'a', encoding='utf-8') as stream:
+        stream.write(json.dumps({'appeal_id': local_id, 'crm_id': result.appeal_id if result else None,
+                                'number': result.number if result else None,
+                                'status': result.status if result else None,
+                                'failed': bool(error)}, ensure_ascii=False) + '\n')
 
 
 def photo_targets():
@@ -54,6 +78,7 @@ TEXT = {
             "Здесь вы можете оставить обращение в службу 109."
         ),
         "open_app": "Оставить обращение",
+        "history": "История обращений",
         "ideas": "Идеи граждан",
         "ideas_prompt": "Напишите вашу идею или предложение для города одним сообщением.",
         "ideas_saved": "Спасибо! Ваша идея сохранена и будет рассмотрена.",
@@ -76,6 +101,7 @@ TEXT = {
             "Мұнда 109 қызметіне өтініш қалдыра аласыз."
         ),
         "open_app": "Өтініш қалдыру",
+        "history": "Өтініштер тарихы",
         "ideas": "Азаматтар идеясы",
         "ideas_prompt": "Қалаға қатысты идеяңызды немесе ұсынысыңызды бір хабарламада жазыңыз.",
         "ideas_saved": "Рақмет! Идеяңыз сақталды және қарастырылады.",
@@ -162,6 +188,7 @@ def main_keyboard(language: str):
                     web_app=WebAppInfo(url=webapp_url(language))
                 )
             ],
+            [KeyboardButton(text=text['history'])],
             [KeyboardButton(text=text["guide"])]
         ],
         resize_keyboard=True,
@@ -359,6 +386,46 @@ async def guide(message: types.Message):
     await message.answer(TEXT[language]["guide_text"], reply_markup=main_keyboard(language))
 
 
+@dp.message(Command('history'))
+@dp.message(F.text.in_([TEXT['ru']['history'], TEXT['kk']['history']]))
+async def history(message: types.Message):
+    language = user_language(message.from_user.id)
+    if message.chat.type != 'private':
+        await message.answer('Откройте историю в личном чате с ботом.' if language == 'ru' else 'Тарихты ботпен жеке чатта ашыңыз.')
+        return
+    rows = [r for r in read_records(JSONL_FILE) if str(r.get('telegram_user_id')) == str(message.from_user.id)][-10:][::-1]
+    if not rows:
+        await message.answer('У вас пока нет сохранённых обращений.' if language == 'ru' else 'Сақталған өтініштеріңіз әзірге жоқ.', reply_markup=main_keyboard(language))
+        return
+    deliveries = {r.get('appeal_id'): r for r in read_records(DELIVERY_FILE)}
+    await message.answer('Последние обращения:' if language == 'ru' else 'Соңғы өтініштер:', reply_markup=main_keyboard(language))
+    status_names = {
+        'ru': {'1':'Новое','2':'Принято оператором','3':'Назначено исполнителю','4':'В работе','5':'Ожидает уточнения','6':'Возвращено на доработку','7':'Исполнено','8':'Закрыто','9':'Отклонено'},
+        'kk': {'1':'Жаңа','2':'Оператор қабылдады','3':'Орындаушыға тағайындалды','4':'Орындалуда','5':'Нақтылауды күтуде','6':'Толықтыруға қайтарылды','7':'Орындалды','8':'Жабылды','9':'Қабылданбады'}
+    }
+    async def render(row):
+        local_id = row.get('appeal_id') or row.get('appealNumber') or '—'
+        delivery = deliveries.get(local_id, {})
+        number = delivery.get('number') or local_id
+        label = 'Статус отправки не сохранён' if language == 'ru' else 'Жіберу мәртебесі сақталмаған'
+        if delivery.get('failed'):
+            label = 'Не передано в CRM' if language == 'ru' else 'CRM-ге жіберілмеген'
+        if delivery.get('crm_id'):
+            try:
+                detail = await asyncio.wait_for(crm.get_appeal(delivery['crm_id']), timeout=8)
+                label = status_names[language].get(str(detail.get('status')), 'Статус обновлён в CRM' if language == 'ru' else 'Мәртебе CRM-де жаңартылған')
+                if language == 'ru':
+                    label = detail.get('status_name') or label
+            except (CRMError, TimeoutError):
+                label = 'Передано в CRM; текущий статус недоступен' if language == 'ru' else 'CRM-ге жіберілді; ағымдағы мәртебе қолжетімсіз'
+        district = localized_appeal_value(str(row.get('district', '')), language, KK_DISTRICT_NAMES)
+        category = localized_appeal_value(str(row.get('category', '')), language, KK_CATEGORY_NAMES)
+        values = [f'№ {number} · {label}', str(row.get('created_at') or row.get('saved_at') or row.get('createdAt') or ''), category, district, str(row.get('address') or '')[:500]]
+        return '\n'.join(escape(v) for v in values if v)
+    for text in await asyncio.gather(*(render(row) for row in rows)):
+        await message.answer(text)
+
+
 @dp.message(F.text.in_([TEXT["ru"]["ideas"], TEXT["kk"]["ideas"]]))
 async def start_idea(message: types.Message):
     language = user_language(message.from_user.id)
@@ -399,6 +466,7 @@ async def handle_web_app_data(message: types.Message):
     else:
         crm_error = "CRM не настроена"
 
+    record_delivery(saved['appeal_id'], crm_result, crm_error)
     language = user_language(message.from_user.id)
     category_value = localized_appeal_value(str(saved["category"] or ""), language, KK_CATEGORY_NAMES)
     district_value = localized_appeal_value(str(saved["district"] or ""), language, KK_DISTRICT_NAMES)
