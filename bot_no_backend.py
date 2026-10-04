@@ -168,7 +168,7 @@ def webapp_url(language: str, user_id: int) -> str:
     parsed = urlparse(WEBAPP_URL)
     query = dict(parse_qsl(parsed.query))
     query["lang"] = language
-    query['v'] = 'inline-photos-20261005'
+    query['v'] = 'map-photo-remove-20261005'
     endpoint = os.getenv('PHOTO_UPLOAD_URL', '').rstrip('/')
     if endpoint:
         query['upload'] = endpoint

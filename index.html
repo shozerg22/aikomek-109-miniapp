@@ -619,6 +619,15 @@
       display: block;
     }
 
+    .remove-photo {
+      position: absolute; top: 3px; right: 3px;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(15,23,42,.85); color: white;
+      border: 2px solid white; font-size: 28px; line-height: 1;
+      display: grid; place-items: center; cursor: pointer;
+    }
+    .remove-photo:focus-visible { outline: 3px solid #1e7be0; }
+
     .summary-card {
       display: grid;
       gap: 10px;
@@ -1032,8 +1041,8 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQOtvfR0SV1KPm6xZ6p6wJf9Q/2T9sw=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
   <script>
     const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
     const appLanguage = new URLSearchParams(window.location.search).get('lang') === 'kk' ? 'kk' : 'ru';
@@ -1091,6 +1100,8 @@
     const nameInput = document.getElementById('name');
     const counter = document.getElementById('counter');
     const photos = document.getElementById('photos');
+    let selectedPhotos = [];
+    let previewUrls = [];
     const preview = document.getElementById('preview');
     const geoBtn = document.getElementById('geoBtn');
     const clearGeoBtn = document.getElementById('clearGeoBtn');
@@ -1255,7 +1266,7 @@
         ? (appLanguage === 'kk' ? (kkDistrictNames[district.value] || district.value) : district.value)
         : noDistrict;
       summary.urgency.textContent = phone.value.trim() || 'Не указан';
-      summary.photos.textContent = String(Math.min(photos.files.length, 3));
+      summary.photos.textContent = String(selectedPhotos.length);
       counter.textContent = `${description.value.length}/600`;
     }
 
@@ -1283,22 +1294,44 @@
       el.addEventListener('change', updateSummary);
     });
 
-    photos.addEventListener('change', () => {
+    function renderPhotos() {
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      previewUrls = [];
       preview.innerHTML = '';
-      if (photos.files.length > 3 || [...photos.files].some(file => file.size > 10 * 1024 * 1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) {
-        photos.value = '';
-        showToast(appLanguage === 'kk' ? '10 МБ-қа дейінгі 3 фото таңдаңыз: JPEG, PNG, WebP.' : 'Выберите до 3 фото по 10 МБ: JPEG, PNG, WebP.');
-      }
-      const files = [...photos.files].slice(0, 3);
-      files.forEach(file => {
+      selectedPhotos.forEach((file, index) => {
         const url = URL.createObjectURL(file);
+        previewUrls.push(url);
         const item = document.createElement('div');
         item.className = 'preview-item';
-        item.innerHTML = `<img src="${url}" alt="Предпросмотр фото" />`;
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = appLanguage === 'kk' ? `Фото ${index + 1}` : `Фото ${index + 1}`;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'remove-photo';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', appLanguage === 'kk' ? `${index + 1} фотосын жою` : `Удалить фото ${index + 1}`);
+        remove.addEventListener('click', () => {
+          if (nextBtn.disabled) return;
+          selectedPhotos.splice(index, 1);
+          renderPhotos();
+        });
+        item.append(img, remove);
         preview.appendChild(item);
       });
-      preview.classList.toggle('is-visible', files.length > 0);
+      preview.classList.toggle('is-visible', selectedPhotos.length > 0);
       updateSummary();
+    }
+    photos.addEventListener('change', () => {
+      const incoming = [...photos.files];
+      photos.value = '';
+      if (nextBtn.disabled) return;
+      if (selectedPhotos.length + incoming.length > 3 || incoming.some(file => file.size > 10 * 1024 * 1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) {
+        showToast(appLanguage === 'kk' ? '10 МБ-қа дейінгі 3 фото таңдаңыз: JPEG, PNG, WebP.' : 'Выберите до 3 фото по 10 МБ: JPEG, PNG, WebP.');
+        return;
+      }
+      selectedPhotos.push(...incoming);
+      renderPhotos();
     });
 
     function setLocationPoint(latitude, longitude, source) {
@@ -1308,23 +1341,24 @@
       geoStatus.textContent = `${source || labels.mapPoint}: ${lat.value}, ${lng.value}`;
 
       if (locationMap) {
-        const point = [Number(lat.value), Number(lng.value)];
-        if (locationMarker) locationMarker.setLatLng(point);
-        else locationMarker = L.marker(point).addTo(locationMap);
-        locationMap.setView(point, Math.max(locationMap.getZoom(), 16));
+        const point = [Number(lng.value), Number(lat.value)];
+        if (locationMarker) locationMarker.setLngLat(point);
+        else locationMarker = new maplibregl.Marker({color: '#1e7be0'}).setLngLat(point).addTo(locationMap);
+        locationMap.jumpTo({center: point, zoom: Math.max(locationMap.getZoom(), 16)});
       }
     }
 
     function initializeMap() {
-      if (locationMap || !window.L) return;
-      const defaultPoint = [53.2837, 69.3839];
-      const initialPoint = lat.value && lng.value ? [Number(lat.value), Number(lng.value)] : defaultPoint;
-      locationMap = L.map('locationMap', { zoomControl: true }).setView(initialPoint, lat.value ? 16 : 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(locationMap);
-      locationMap.on('click', event => setLocationPoint(event.latlng.lat, event.latlng.lng));
+      if (locationMap || !window.maplibregl) return;
+      const defaultPoint = [69.3839, 53.2837];
+      const initialPoint = lat.value && lng.value ? [Number(lng.value), Number(lat.value)] : defaultPoint;
+      locationMap = new maplibregl.Map({container: 'locationMap',
+        style: 'https://tiles.openfreemap.org/styles/liberty', center: initialPoint,
+        zoom: lat.value ? 16 : 12, maxZoom: 19, attributionControl: true});
+      locationMap.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
+      locationMap.on('error', () => { mapCaption.textContent = appLanguage === 'kk' ? 'Карта жүктелмеді. Интернетті тексеріңіз немесе мекенжайды жазыңыз.' : 'Не удалось загрузить карту. Проверьте интернет или укажите адрес текстом.'; });
+      locationMap.on('idle', () => { mapCaption.textContent = locationLabels().mapCaption; });
+      locationMap.on('click', event => setLocationPoint(event.lngLat.lat, event.lngLat.lng));
       if (lat.value && lng.value) setLocationPoint(lat.value, lng.value);
     }
 
@@ -1333,14 +1367,18 @@
       mapPicker.hidden = !isOpening;
       mapBtnText.textContent = isOpening ? locationLabels().closeMap : locationLabels().openMap;
       if (!isOpening) return;
-      if (!window.L) {
+      if (!window.maplibregl) {
         mapPicker.hidden = true;
         mapBtnText.textContent = locationLabels().openMap;
         showToast(appLanguage === 'kk' ? 'Картаны жүктеу мүмкін болмады' : 'Не удалось загрузить карту');
         return;
       }
-      initializeMap();
-      setTimeout(() => locationMap && locationMap.invalidateSize(), 100);
+      try {
+        initializeMap();
+        setTimeout(() => locationMap && locationMap.resize(), 100);
+      } catch (error) {
+        mapCaption.textContent = appLanguage === 'kk' ? 'Бұл құрылғыда карта қолжетімсіз. Мекенжайды жазыңыз.' : 'Карта недоступна на этом устройстве. Укажите адрес текстом.';
+      }
     });
 
     geoBtn.addEventListener('click', () => {
@@ -1373,7 +1411,7 @@
       lng.value = '';
       geoStatus.textContent = locationLabels().noLocation;
       if (locationMarker && locationMap) {
-        locationMap.removeLayer(locationMarker);
+        locationMarker.remove();
         locationMarker = null;
       }
     });
@@ -1463,7 +1501,7 @@
         name: nameInput.value.trim(),
         lat: lat.value,
         lng: lng.value,
-        photoCount: Math.min(photos.files.length, 3),
+        photoCount: selectedPhotos.length,
         telegramUser: tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null,
         createdAt: new Date().toISOString()
       };
@@ -1489,7 +1527,7 @@
         createdAt: payload.createdAt
       };
 
-      if (photos.files.length) {
+      if (selectedPhotos.length) {
         const params = new URLSearchParams(window.location.search);
         const endpoint = params.get('upload');
         const uploadTicket = params.get('ticket');
@@ -1502,14 +1540,14 @@
         nextBtn.querySelector('span').textContent = appLanguage === 'kk' ? 'Фото жүктелуде…' : 'Загружаем фото…';
         try {
           const formData = new FormData();
-          [...photos.files].forEach(file => formData.append('photo', file));
+          selectedPhotos.forEach(file => formData.append('photo', file));
           const response = await fetch(endpoint + '/photos', {
             method: 'POST', headers: { Authorization: 'Bearer ' + uploadTicket },
             body: formData, signal: AbortSignal.timeout(90000), referrerPolicy: 'no-referrer'
           });
           if (!response.ok) throw new Error(String(response.status));
           const uploaded = await response.json();
-          if (!uploaded.batch || uploaded.count !== photos.files.length) throw new Error('Invalid upload result');
+          if (!uploaded.batch || uploaded.count !== selectedPhotos.length) throw new Error('Invalid upload result');
           botPayload.photoBatch = uploaded.batch;
         } catch (error) {
           showToast(appLanguage === 'kk' ? 'Фото жүктелмеді. Интернетті тексеріп, қайта көріңіз. Форманы /start арқылы қайта ашуға болады.' : 'Фото не загрузились. Проверьте соединение и повторите. При необходимости откройте форму заново через /start.');
