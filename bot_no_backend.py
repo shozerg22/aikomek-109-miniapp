@@ -21,7 +21,7 @@ from aiogram.types import (
 )
 from dotenv import load_dotenv
 
-from crm import CRMClient, CRMError
+from crm import CRMClient, CRMError, CRMResult
 from crm_upload import CRMUploader, UploadError
 from photo_server import ticket, batch_files, start_server
 
@@ -40,6 +40,13 @@ CSV_FILE = os.path.join(DATA_DIR, "appeals.csv")
 JSONL_FILE = os.path.join(DATA_DIR, "appeals.jsonl")
 IDEAS_FILE = os.path.join(DATA_DIR, "citizen_ideas.jsonl")
 DELIVERY_FILE = os.path.join(DATA_DIR, 'delivery.jsonl')
+RETRY_LOCK = asyncio.Lock()
+
+
+def retry_keyboard(local_id, language):
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text='Повторить отправку' if language == 'ru' else 'Қайта жіберу',
+        callback_data='retry:' + local_id)]])
 
 
 def read_records(path):
@@ -427,8 +434,78 @@ async def history(message: types.Message):
         category = localized_appeal_value(str(row.get('category', '')), language, KK_CATEGORY_NAMES)
         values = [f'№ {number} · {label}', str(row.get('created_at') or row.get('saved_at') or row.get('createdAt') or ''), category, district, str(row.get('address') or '')[:500]]
         return '\n'.join(escape(v) for v in values if v)
-    for text in await asyncio.gather(*(render(row) for row in rows)):
-        await message.answer(text)
+    for row, text in zip(rows, await asyncio.gather(*(render(row) for row in rows))):
+        local_id = row.get('appeal_id')
+        delivery = deliveries.get(local_id, {})
+        markup = retry_keyboard(local_id, language) if local_id and delivery.get('failed') and not delivery.get('crm_id') else None
+        await message.answer(text, reply_markup=markup)
+
+
+@dp.callback_query(F.data.startswith('retry:'))
+async def retry_appeal(callback: types.CallbackQuery):
+    language = user_language(callback.from_user.id)
+    await callback.answer()
+    if not callback.message or callback.message.chat.type != 'private':
+        return
+    local_id = callback.data.split(':', 1)[1]
+    async with RETRY_LOCK:
+        row = next((r for r in read_records(JSONL_FILE) if r.get('appeal_id') == local_id and str(r.get('telegram_user_id')) == str(callback.from_user.id)), None)
+        if not row:
+            await callback.message.answer('Заявка не найдена.' if language == 'ru' else 'Өтініш табылмады.')
+            return
+        delivery = {r.get('appeal_id'): r for r in read_records(DELIVERY_FILE)}.get(local_id, {})
+        if delivery.get('crm_id'):
+            await callback.message.answer('Эта заявка уже передана в CRM.' if language == 'ru' else 'Бұл өтініш CRM-ге жіберілген.')
+            return
+        if not delivery.get('failed'):
+            return
+        try:
+            raw = json.loads(row.get('raw_json') or '{}')
+            files = batch_files(os.path.join(DATA_DIR, 'photo_batches'), raw['photoBatch'], callback.from_user.id) if raw.get('photoBatch') else []
+            # A timed-out POST may have reached CRM. Check existing records before retrying.
+            listing = await crm._request('GET', 'appeals/')
+            if isinstance(listing, dict) and listing.get('next'):
+                raise CRMError('Cannot safely check all existing appeals')
+            candidates = listing.get('results', []) if isinstance(listing, dict) else listing
+            matches = []
+            for candidate in candidates:
+                if candidate.get('applicant_phone') != row['phone']:
+                    continue
+                detail = await crm.get_appeal(candidate['id'])
+                if (str(detail.get('telegram_chat_id')) == str(callback.from_user.id)
+                        and detail.get('description') == row['description']
+                        and detail.get('street', '') == row['address']
+                        and str(detail.get('created_at', ''))[:10] == row['created_at'][:10]):
+                    matches.append(detail)
+            if len(matches) > 1:
+                raise CRMError('Ambiguous existing appeal')
+            if matches:
+                existing = matches[0]
+                result = CRMResult(int(existing['id']), str(existing.get('number', existing['id'])), str(existing.get('status', '1')))
+            else:
+                result = await crm.create_appeal({
+                    'applicant_phone': row['phone'], 'applicant_name': raw.get('name') or row['full_name'],
+                    'telegram_user_id': row['telegram_user_id'], 'category': row.get('crm_category') or row['category'],
+                    'district': row['district'], 'address': row['address'], 'description': row['description'],
+                    'latitude': row.get('location_lat'), 'longitude': row.get('location_lng')})
+            record_delivery(local_id, result, None)
+        except (CRMError, TimeoutError):
+            await callback.message.answer('CRM пока недоступна или отправку не удалось подтвердить. Попробуйте позже.' if language == 'ru' else 'CRM әзірге қолжетімсіз немесе жіберу расталмады. Кейінірек қайталап көріңіз.', reply_markup=retry_keyboard(local_id, language))
+            return
+        except (ValueError, OSError, KeyError):
+            await callback.message.answer('Не удалось прочитать сохранённую заявку или её фото. Обратитесь к администратору.' if language == 'ru' else 'Сақталған өтініш немесе фото оқылмады. Әкімшіге хабарласыңыз.')
+            return
+        failures = 0
+        for path, mime in files:
+            try:
+                await CRMUploader().upload(result.appeal_id, path.read_bytes(), path.name, mime)
+            except (UploadError, OSError):
+                failures += 1
+        await callback.message.edit_reply_markup(reply_markup=None)
+        text = f'Обращение № {escape(result.number)} передано в CRM.' if language == 'ru' else f'№ {escape(result.number)} өтініш CRM-ге жіберілді.'
+        if files:
+            text += ('\nФото прикреплены.' if language == 'ru' else '\nФотолар тіркелді.') if not failures else ('\nЧасть фото не загрузилась. Обратитесь к администратору.' if language == 'ru' else '\nКейбір фотолар жүктелмеді. Әкімшіге хабарласыңыз.')
+        await callback.message.answer(text)
 
 
 @dp.message(F.text.in_([TEXT["ru"]["ideas"], TEXT["kk"]["ideas"]]))
