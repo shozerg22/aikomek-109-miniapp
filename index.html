@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ru">
 <head>
+  <meta name="referrer" content="no-referrer" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f4c81" />
@@ -966,12 +967,12 @@
           <div class="field" style="margin-top:12px">
             <label>Фото</label>
             <label class="upload" for="photos">
-              <input id="photos" name="photos" type="file" accept="image/*" multiple disabled hidden />
+              <input id="photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple />
               <span class="upload-inner">
                 <span class="upload-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4.5 7.2A2.7 2.7 0 017.2 4.5h9.6a2.7 2.7 0 012.7 2.7v9.6a2.7 2.7 0 01-2.7 2.7H7.2a2.7 2.7 0 01-2.7-2.7V7.2z" stroke="currentColor" stroke-width="1.8"/><path d="M8 15l2.7-2.7a1 1 0 011.4 0l1.1 1.1.8-.8a1 1 0 011.4 0L18 15.2M8.8 8.8h.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span>
-                  <span class="upload-title">Фото через Telegram</span>
-                  <span class="upload-text">После отправки заявки бот предложит прикрепить фото в чате. Отправьте его ответом на сообщение с номером заявки.</span>
+                  <span class="upload-title">Прикрепить фото</span>
+                  <span class="upload-text">До 3 фотографий, каждая до 10 МБ. JPEG, PNG или WebP.</span>
                 </span>
               </span>
             </label>
@@ -1221,8 +1222,8 @@
       mapBtnText.textContent = locationLabels().openMap;
       mapCaption.textContent = locationLabels().mapCaption;
       geoStatus.textContent = locationLabels().noLocation;
-      document.querySelector('.upload-title').textContent = 'Telegram арқылы фото';
-      document.querySelector('.upload-text').textContent = 'Өтініш жіберілген соң бот чатта фото тіркеуді ұсынады. Өтініш нөмірі бар хабарламаға жауап ретінде фото жіберіңіз.';
+      document.querySelector('.upload-title').textContent = 'Фото тіркеу';
+      document.querySelector('.upload-text').textContent = '3 фотоға дейін, әрқайсысы 10 МБ-тан аспауы тиіс. JPEG, PNG немесе WebP.';
       document.querySelectorAll('.summary-row span:first-child').forEach((element, index) => {
         element.textContent = ['Санат', 'Орны', 'Телефон', 'Фото'][index];
       });
@@ -1284,6 +1285,10 @@
 
     photos.addEventListener('change', () => {
       preview.innerHTML = '';
+      if (photos.files.length > 3 || [...photos.files].some(file => file.size > 10 * 1024 * 1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) {
+        photos.value = '';
+        showToast(appLanguage === 'kk' ? '10 МБ-қа дейінгі 3 фото таңдаңыз: JPEG, PNG, WebP.' : 'Выберите до 3 фото по 10 МБ: JPEG, PNG, WebP.');
+      }
       const files = [...photos.files].slice(0, 3);
       files.forEach(file => {
         const url = URL.createObjectURL(file);
@@ -1442,6 +1447,7 @@
 
     form.addEventListener('submit', async event => {
       event.preventDefault();
+      if (nextBtn.disabled) return;
       if (!validateStep() || currentStep !== orderedSections.length - 1) return;
 
       const appealNumber = `SA-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -1483,7 +1489,38 @@
         createdAt: payload.createdAt
       };
 
+      if (photos.files.length) {
+        const params = new URLSearchParams(window.location.search);
+        const endpoint = params.get('upload');
+        const uploadTicket = params.get('ticket');
+        if (!endpoint || !uploadTicket || !tg) {
+          showToast(appLanguage === 'kk' ? 'Ботқа /start жіберіп, форманы жаңа батырмадан ашыңыз.' : 'Отправьте боту /start и откройте форму через новую кнопку.');
+          return;
+        }
+        nextBtn.disabled = true;
+        backBtn.disabled = true;
+        nextBtn.querySelector('span').textContent = appLanguage === 'kk' ? 'Фото жүктелуде…' : 'Загружаем фото…';
+        try {
+          const formData = new FormData();
+          [...photos.files].forEach(file => formData.append('photo', file));
+          const response = await fetch(endpoint + '/photos', {
+            method: 'POST', headers: { Authorization: 'Bearer ' + uploadTicket },
+            body: formData, signal: AbortSignal.timeout(90000), referrerPolicy: 'no-referrer'
+          });
+          if (!response.ok) throw new Error(String(response.status));
+          const uploaded = await response.json();
+          if (!uploaded.batch || uploaded.count !== photos.files.length) throw new Error('Invalid upload result');
+          botPayload.photoBatch = uploaded.batch;
+        } catch (error) {
+          showToast(appLanguage === 'kk' ? 'Фото жүктелмеді. Интернетті тексеріп, қайта көріңіз. Форманы /start арқылы қайта ашуға болады.' : 'Фото не загрузились. Проверьте соединение и повторите. При необходимости откройте форму заново через /start.');
+          nextBtn.disabled = false;
+          backBtn.disabled = false;
+          nextBtn.querySelector('span').textContent = uiText[appLanguage].submit;
+          return;
+        }
+      }
       if (tg && typeof tg.sendData === 'function') {
+        nextBtn.disabled = true;
         tg.MainButton.hide();
         tg.sendData(JSON.stringify(botPayload));
         return;

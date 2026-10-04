@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 from crm import CRMClient, CRMError
 from crm_upload import CRMUploader, UploadError
+from photo_server import ticket, batch_files, start_server
 
 
 # =========================
@@ -163,11 +164,15 @@ def localized_appeal_value(value: str, language: str, values: dict[str, str]) ->
     return values.get(value, value) if language == "kk" else value
 
 
-def webapp_url(language: str) -> str:
+def webapp_url(language: str, user_id: int) -> str:
     parsed = urlparse(WEBAPP_URL)
     query = dict(parse_qsl(parsed.query))
     query["lang"] = language
-    query['v'] = 'photos-20260927'
+    query['v'] = 'inline-photos-20261005'
+    endpoint = os.getenv('PHOTO_UPLOAD_URL', '').rstrip('/')
+    if endpoint:
+        query['upload'] = endpoint
+        query['ticket'] = ticket(user_id, BOT_TOKEN)
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
@@ -178,14 +183,14 @@ def language_keyboard() -> InlineKeyboardMarkup:
     ]])
 
 
-def main_keyboard(language: str):
+def main_keyboard(language: str, user_id: int):
     text = TEXT[language]
     return ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(
                     text=text["open_app"],
-                    web_app=WebAppInfo(url=webapp_url(language))
+                    web_app=WebAppInfo(url=webapp_url(language, user_id))
                 )
             ],
             [KeyboardButton(text=text['history'])],
@@ -359,7 +364,7 @@ async def select_language(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.answer(
         TEXT[language]["welcome"],
-        reply_markup=main_keyboard(language)
+        reply_markup=main_keyboard(language, callback.from_user.id)
     )
 
 
@@ -376,14 +381,14 @@ async def help_command(message: types.Message):
     language = user_language(message.from_user.id)
     await message.answer(
         TEXT[language]["help"],
-        reply_markup=main_keyboard(language)
+        reply_markup=main_keyboard(language, message.from_user.id)
     )
 
 
 @dp.message(F.text.in_([TEXT["ru"]["guide"], TEXT["kk"]["guide"]]))
 async def guide(message: types.Message):
     language = user_language(message.from_user.id)
-    await message.answer(TEXT[language]["guide_text"], reply_markup=main_keyboard(language))
+    await message.answer(TEXT[language]["guide_text"], reply_markup=main_keyboard(language, message.from_user.id))
 
 
 @dp.message(Command('history'))
@@ -395,10 +400,10 @@ async def history(message: types.Message):
         return
     rows = [r for r in read_records(JSONL_FILE) if str(r.get('telegram_user_id')) == str(message.from_user.id)][-10:][::-1]
     if not rows:
-        await message.answer('У вас пока нет сохранённых обращений.' if language == 'ru' else 'Сақталған өтініштеріңіз әзірге жоқ.', reply_markup=main_keyboard(language))
+        await message.answer('У вас пока нет сохранённых обращений.' if language == 'ru' else 'Сақталған өтініштеріңіз әзірге жоқ.', reply_markup=main_keyboard(language, message.from_user.id))
         return
     deliveries = {r.get('appeal_id'): r for r in read_records(DELIVERY_FILE)}
-    await message.answer('Последние обращения:' if language == 'ru' else 'Соңғы өтініштер:', reply_markup=main_keyboard(language))
+    await message.answer('Последние обращения:' if language == 'ru' else 'Соңғы өтініштер:', reply_markup=main_keyboard(language, message.from_user.id))
     status_names = {
         'ru': {'1':'Новое','2':'Принято оператором','3':'Назначено исполнителю','4':'В работе','5':'Ожидает уточнения','6':'Возвращено на доработку','7':'Исполнено','8':'Закрыто','9':'Отклонено'},
         'kk': {'1':'Жаңа','2':'Оператор қабылдады','3':'Орындаушыға тағайындалды','4':'Орындалуда','5':'Нақтылауды күтуде','6':'Толықтыруға қайтарылды','7':'Орындалды','8':'Жабылды','9':'Қабылданбады'}
@@ -430,7 +435,7 @@ async def history(message: types.Message):
 async def start_idea(message: types.Message):
     language = user_language(message.from_user.id)
     IDEA_WAITING_USERS.add(message.from_user.id)
-    await message.answer(TEXT[language]["ideas_prompt"], reply_markup=main_keyboard(language))
+    await message.answer(TEXT[language]["ideas_prompt"], reply_markup=main_keyboard(language, message.from_user.id))
 
 
 @dp.message(F.web_app_data)
@@ -444,6 +449,13 @@ async def handle_web_app_data(message: types.Message):
             "raw_text": raw_data
         }
 
+    staged_photos = []
+    if appeal.get('photoBatch'):
+        try:
+            staged_photos = batch_files(os.path.join(DATA_DIR, 'photo_batches'), str(appeal['photoBatch']), message.from_user.id)
+        except (ValueError, OSError, KeyError):
+            await message.answer('Не удалось найти фотографии. Откройте форму заново.' if user_language(message.from_user.id) == 'ru' else 'Фотолар табылмады. Форманы қайта ашыңыз.')
+            return
     saved = save_appeal(appeal, message.from_user)
 
     crm_result = None
@@ -467,6 +479,14 @@ async def handle_web_app_data(message: types.Message):
         crm_error = "CRM не настроена"
 
     record_delivery(saved['appeal_id'], crm_result, crm_error)
+    photo_failures = 0
+    if crm_result:
+        for path, mime in staged_photos:
+            try:
+                await CRMUploader().upload(crm_result.appeal_id, path.read_bytes(), path.name, mime)
+            except (UploadError, OSError) as exc:
+                photo_failures += 1
+                logging.warning('Inline photo failed for CRM %s: %s', crm_result.appeal_id, type(exc).__name__)
     language = user_language(message.from_user.id)
     category_value = localized_appeal_value(str(saved["category"] or ""), language, KK_CATEGORY_NAMES)
     district_value = localized_appeal_value(str(saved["district"] or ""), language, KK_DISTRICT_NAMES)
@@ -513,8 +533,10 @@ async def handle_web_app_data(message: types.Message):
             "Чтобы подать новое обращение, снова нажмите кнопку внизу."
         )
 
-    await message.answer(result_text + details_text, reply_markup=main_keyboard(language))
-    if crm_result:
+    if staged_photos and crm_result:
+        details_text += ('\nФотографии прикреплены.' if language == 'ru' else '\nФотолар тіркелді.') if not photo_failures else ('\nЧасть фото не загрузилась. Можно отправить их ответом на следующее сообщение.' if language == 'ru' else '\nКейбір фотолар жүктелмеді. Оларды келесі хабарламаға жауап ретінде жіберіңіз.')
+    await message.answer(result_text + details_text, reply_markup=main_keyboard(language, message.from_user.id))
+    if crm_result and (not staged_photos or photo_failures):
         prompt = (f'Чтобы прикрепить фото к обращению № {crm_result.number}, отправьте фото ответом на это сообщение. До 10 МБ на файл.' if language == 'ru' else f'№ {crm_result.number} өтінішке фото тіркеу үшін осы хабарламаға жауап ретінде фото жіберіңіз. Бір файл 10 МБ-тан аспауы тиіс.')
         sent = await message.answer(prompt, reply_markup=types.ForceReply(selective=True))
         with photo_targets() as conn:
@@ -556,11 +578,11 @@ async def any_text(message: types.Message):
                     "text": idea,
                 }, ensure_ascii=False) + "\n")
             IDEA_WAITING_USERS.discard(message.from_user.id)
-            await message.answer(TEXT[language]["ideas_saved"], reply_markup=main_keyboard(language))
+            await message.answer(TEXT[language]["ideas_saved"], reply_markup=main_keyboard(language, message.from_user.id))
             return
     await message.answer(
         TEXT[language]["help"],
-        reply_markup=main_keyboard(language)
+        reply_markup=main_keyboard(language, message.from_user.id)
     )
 
 
@@ -580,7 +602,11 @@ async def main():
     print("======================================")
     print("Окно не закрывать. Пока оно открыто — бот работает.")
 
-    await dp.start_polling(bot)
+    runner = await start_server(BOT_TOKEN, DATA_DIR)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
